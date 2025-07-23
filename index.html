@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Rückennummern</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #fff;
+      color: #900;
+      padding: 1rem;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border: 2px solid #f00;
+    }
+    h1 {
+      text-align: center;
+      color: #d00;
+    }
+    input, select, button {
+      width: 100%;
+      margin: 0.5rem 0;
+      padding: 0.7rem;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #c00;
+      color: #fff;
+      border: none;
+    }
+    button:hover {
+      background-color: #a00;
+    }
+    .toast {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.8rem;
+      border-radius: 4px;
+      border: 1px solid;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      table-layout: fixed;
+      max-width: 200px;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #f00;
+      padding: 0.5rem;
+      text-align: left;
+      word-break: break-word;
+    }
+    th {
+      background-color: #fdd;
+      cursor: pointer;
+    }
+    th:nth-child(1), td:nth-child(1) {
+      width: 2px;
+    }
+    th:nth-child(2), td:nth-child(2) {
+      width: 40px;
+    }
+    @media (max-width: 600px) {
+      .container {
+        padding: 1rem;
+        border-width: 1px;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Rückennummern</h1>
+    <input type="text" id="name" placeholder="Dein Name" />
+    <select id="groesse">
+      <option value="">Größe wählen</option>
+      <option value="116">116</option>
+      <option value="128">128</option>
+      <option value="140">140</option>
+    </select>
+    <select id="number">
+      <option value="">Nummer wählen</option>
+    </select>
+    <button id="reserve">Reservieren</button>
+
+    <div id="message" class="toast"></div>
+
+    <h3>Vergebene Nummern</h3>
+    <table id="table">
+      <thead>
+        <tr>
+          <th onclick="sortTable(0)">Nr.</th>
+          <th onclick="sortTable(1)">Name</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const API = 'https://script.google.com/macros/s/AKfycbzvdzzyQaqXM-aKBgheJGO83LetZEd8t8vN7c5KuPcLg_KaubPlcRNC_oVxBwNIYP2D/exec';
+    let allData = [];
+
+    function showMessage(msg, success = true) {
+      const el = document.getElementById('message');
+      el.textContent = msg;
+      el.style.display = 'block';
+      el.style.backgroundColor = success ? '#f8d7da' : '#fdd';
+      el.style.color = success ? '#721c24' : '#900';
+      el.style.borderColor = success ? '#f5c6cb' : '#f99';
+    }
+
+    function filterNumbers(groesse) {
+      const sel = document.getElementById('number');
+      sel.innerHTML = '<option value="">Nummer wählen</option>';
+      let range = [];
+
+      if (groesse === "116") range = [2,3,4,5,6,7,8];
+      if (groesse === "128") range = [9,10,11,12,13,14,15,16];
+      if (groesse === "140") range = [17,18,19];
+
+      const taken = allData.map(r => Number(r[0]));
+      range.forEach(n => {
+        if (!taken.includes(n)) {
+          const opt = document.createElement('option');
+          opt.value = n;
+          opt.textContent = `Nr. ${n}`;
+          sel.appendChild(opt);
+        }
+      });
+    }
+
+    function load() {
+      fetch(API)
+        .then(r => r.json())
+        .then(data => {
+          allData = data;
+          const tbody = document.querySelector('#table tbody');
+          tbody.innerHTML = '';
+          data.forEach(([num, name]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${num}</td><td>${name}</td>`;
+            tbody.appendChild(tr);
+          });
+          sortTable(0);
+        })
+        .catch(e => showMessage('Fehler beim Laden der Daten.', false));
+    }
+
+    document.getElementById('groesse').addEventListener('change', function () {
+      filterNumbers(this.value);
+    });
+
+    document.getElementById('reserve').onclick = () => {
+      const name = document.getElementById('name').value.trim();
+      const num = document.getElementById('number').value;
+      if (!name || !num) {
+        showMessage('Bitte Name und Nummer eingeben.', false);
+        return;
+      }
+      fetch(API, {
+        method: 'POST',
+        body: JSON.stringify({ name, nummer: num }),
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'ok') {
+          showMessage(res.message, true);
+          load();
+          document.getElementById('groesse').value = '';
+          document.getElementById('number').innerHTML = '<option value="">Nummer wählen</option>';
+        } else {
+          showMessage(res.message || 'Fehler bei der Reservierung.', false);
+        }
+      })
+      .catch(e => showMessage('Serverfehler: Reservierung fehlgeschlagen.', false));
+    };
+
+    function sortTable(colIndex) {
+      const table = document.getElementById("table");
+      const rows = Array.from(table.rows).slice(1);
+      let sorted = rows.sort((a, b) => {
+        let A = a.cells[colIndex].textContent.trim().toLowerCase();
+        let B = b.cells[colIndex].textContent.trim().toLowerCase();
+        if (!isNaN(A) && !isNaN(B)) {
+          return Number(A) - Number(B);
+        }
+        return A.localeCompare(B);
+      });
+      const tbody = table.tBodies[0];
+      sorted.forEach(row => tbody.appendChild(row));
+    }
+
+    load();
+  </script>
+</body>
+</html>
